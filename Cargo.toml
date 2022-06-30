@@ -1,0 +1,11 @@
+[package]
+name = "bevy_is_you"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bevy = { version = "*", features = ["dynamic"] }
+serde_json = "*"
+# bevy = { version = "*" } # turn this one on when you want ot build the game for release or not to link it with the dynamic bevy lib.
