@@ -7,7 +7,7 @@ A clone of the puzzle game "Baba is you" made in the Bevy game engine for the Ru
 ## If you have cargo installed:
 clone the repo with 
 ```
-git clone git@github.com:derpyzza/ledit.git
+git clone git@github.com:mp768/Bevy-is-you.git
 ```
 and just run
 ```
