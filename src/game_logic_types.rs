@@ -67,7 +67,7 @@ pub enum TextBlock {
     Win,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BlockDirection {
     Right,
     Left,
@@ -103,13 +103,86 @@ pub struct TextBlockBundle {
     pub mover: Mover,
 }
 
+#[derive(Clone, Copy)]
+pub struct RecordData {
+    pub id: Entity,
+    pub pos: Vec3,
+    pub block_type: Block,
+    pub flip_sprite: bool,
+}
+
+// records every manipulatable attribute of every entity on the screen after user input
+#[derive(Default)]
+pub struct WorldRecorder {
+    pub records: Vec<Vec<RecordData>>,
+    pub head_len: isize,
+    pub user_input: bool,
+    pub record: bool,
+}
+
+impl WorldRecorder {
+    pub fn reset(&mut self) {
+        if self.user_input {
+            self.records.resize(self.head_len as usize, Vec::new());
+            self.head_len += 1;
+            self.records.push(Vec::new());
+        }
+
+        self.record = true;
+        self.user_input = false;
+    }
+
+    pub fn get(&self) -> Option<&Vec<RecordData>> {
+        self.records.get((self.head_len-1) as usize)
+    }
+
+    pub fn push(&mut self, id: Entity, pos: Vec3, block_type: Block, flip_sprite: bool) {
+        self.records.resize(self.head_len as usize, Vec::new());
+
+        let record = match self.records.get_mut((self.head_len-1) as usize) {
+            Some(value) => value,
+            None => {
+                self.records.push(Vec::new());
+                self.head_len = self.records.len() as isize;
+
+                &mut self.records[(self.head_len-1) as usize]
+            }
+        };
+
+        record.push(RecordData {
+            id,
+            pos,
+            block_type,
+            flip_sprite,
+        });
+    }
+
+    pub fn undo(&mut self) {
+        self.record = false;
+        self.head_len -= 1;
+
+        if self.head_len <= 0 {
+            self.head_len = 0;
+        }
+    }
+
+    pub fn redo(&mut self) {
+        self.record = false;
+        self.head_len += 1;
+
+        if self.head_len as usize >= self.records.len() {
+            self.head_len = self.records.len() as isize;
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct Textures(pub HashMap<(Block, Option<TextBlock>), Handle<Image>>);
 
 #[derive(Default)]
 pub struct BlockAttributes(pub HashMap<Block, Vec<Attribute>>);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum QueueType {
     Move(BlockDirection, Vec3),
     ChangeBlock(Block, Block),
@@ -117,21 +190,16 @@ pub enum QueueType {
     Delete,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct QueueEntry {
     pub id: Entity,
     pub queue_type: QueueType,
 }
 
-// written at 11:43 PM on 6/24/22
-//
-// I plan to use the queues to set up queuing some entities with their ids to do a certain action,
-// for example if I need to move a rock I can just push it's id and final_position, then it should 
-// set up a task to move it and return if it finishes the task. I want it to be able to be 
-// multi-threaded by bevy automatically. Tasks could be a part of the Block bundle.
-
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct Queue {
+    pub user_input: bool,
+
     entries: Vec<QueueEntry>,
     iter_idx: usize,
 }
@@ -157,8 +225,10 @@ impl Queue {
         }
     }
 
-    pub fn clear(&mut self) {
+    pub fn reset(&mut self) {
         self.entries.clear();
+
+        self.user_input = false;
     }
 }
 

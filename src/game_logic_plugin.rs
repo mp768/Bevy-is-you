@@ -12,6 +12,7 @@ impl Plugin for GameLogicPlugin {
             .init_resource::<TileMap>()
             .init_resource::<Queue>()
             .init_resource::<Constraints>()
+            .init_resource::<WorldRecorder>()
             .insert_resource(load_levels!("_test_level", "actual_puzzle"))
             .add_startup_system(setup_images)
             .add_system_set(
@@ -24,9 +25,11 @@ impl Plugin for GameLogicPlugin {
                     .with_system(change_block_texture)
                     .with_system(apply_constraints.before(apply_mover))
                     .with_system(map_tiles.after(apply_mover))
+                    .with_system(record_world.after(apply_attributes).before(apply_queue))
                     .with_system(apply_attributes.after(map_tiles))
                     .with_system(apply_queue.after(apply_attributes))
                     .with_system(evaluate_text.after(apply_attributes).before(apply_queue))
+                    .with_system(apply_record_to_world.after(apply_attributes).before(apply_queue).after(record_world))
                     .with_system(check_if_win)
             )
             .add_system_set(

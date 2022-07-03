@@ -77,7 +77,7 @@ fn main() {
             height: 720.0,
             ..default()
         }) 
-        .insert_resource(LevelIndex(1))
+        .insert_resource(LevelIndex(0))
         .add_system_set(SystemSet::on_enter(AppState::MainMenu).with_system(draw_ui))
         .add_plugins(DefaultPlugins)
         .add_state(AppState::Game)

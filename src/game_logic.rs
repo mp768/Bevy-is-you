@@ -113,6 +113,43 @@ pub fn check_if_win(mut commands: Commands, winners: Query<Entity, With<PlayerHa
     }
 }
 
+pub fn apply_record_to_world(mut blocks: Query<(Entity, &mut Mover, &mut Sprite, &mut Block)>, world_recorder: Res<WorldRecorder>) {
+    // we don't want to run this function if the world is being recorded. The reason is we wouldn't want the changes we do going back
+    // causing it to become changes piled up on the recording.
+    if world_recorder.user_input || world_recorder.record {
+        return;
+    }
+
+    let record = match world_recorder.get() {
+        Some(value) => value,
+        None => return,
+    };
+
+    for data in record {
+        for (id, mut mover, mut sprite, mut block) in blocks.iter_mut() {
+            if data.id == id {
+                mover.complete = false;
+                mover.target = data.pos;
+                sprite.flip_x = data.flip_sprite;
+                *block = data.block_type;
+            }
+        }
+    }
+}
+
+pub fn record_world(blocks: Query<(Entity, &Transform, &Sprite, &Block)>, mut world_recorder: ResMut<WorldRecorder>) {
+    // should not start recording until user input is detected.
+    if !world_recorder.user_input || !world_recorder.record {
+        return;
+    }
+
+    for (id, transform, sprite, block) in blocks.iter() {
+        world_recorder.push(id, transform.translation, *block, sprite.flip_x);
+    }
+
+    world_recorder.record = false;
+}
+
 pub fn evaluate_text(mover: Query<&Mover, Changed<Mover>>, text: Query<(&TextBlock, &Transform)>, mut block_attributes: ResMut<BlockAttributes>, mut queue: ResMut<Queue>) {
     if mover.is_empty() { return; }
     
@@ -261,6 +298,10 @@ macro_rules! unwrap_attributes {
 }
 
 pub fn apply_queue(mut commands: Commands, mut blocks: Query<(Entity, &mut Block, &mut Mover)>, queue: Res<Queue>, tile_map: Res<TileMap>, block_attributes: Res<BlockAttributes>, constraints: Res<Constraints>) {
+    if !queue.user_input {
+        return;
+    }
+   
     let mut moveables = Vec::<(Entity, Vec3)>::new();
     let mut transform_types = HashMap::<Block, Block>::new();
     
@@ -304,7 +345,11 @@ pub fn apply_queue(mut commands: Commands, mut blocks: Query<(Entity, &mut Block
                     BlockDirection::Right => Vec3::new(16.0, 0.0, 0.0),
                     BlockDirection::Up    => Vec3::new(0.0, 16.0, 0.0),
 
-                    _ => continue,
+                    BlockDirection::None => {
+                        pushables.push((entry.id, position));
+                        moveables.append(&mut pushables);
+                        continue;
+                    },
                 };
 
                 pushables.push((entry.id, position + increment));
@@ -408,8 +453,35 @@ pub fn apply_mover(mut blocks: Query<(&mut Mover, &mut Transform)>, timer: Res<T
     })
 }
 
-pub fn apply_attributes(mut blocks: Query<(Entity, &Block, &Transform, &mut Sprite)>, mut queue: ResMut<Queue>, block_attributes: Res<BlockAttributes>, keys: Res<Input<KeyCode>>) {
-    queue.clear();
+pub fn apply_attributes(
+    movers: Query<&Mover>, 
+    mut blocks: Query<(Entity, &Block, &Transform, &mut Sprite)>, 
+    mut queue: ResMut<Queue>, 
+    mut world_recorder: ResMut<WorldRecorder>,
+    block_attributes: Res<BlockAttributes>, 
+    keys: Res<Input<KeyCode>>) 
+{
+    {
+        let mut logic_continue = true;
+        for mover in movers.iter() {
+            logic_continue = mover.complete && logic_continue;
+        }
+
+        if !logic_continue { return; }
+    }
+    
+    queue.reset();
+    world_recorder.reset();
+
+    if keys.pressed(KeyCode::R) {
+        world_recorder.redo();
+        return;
+    }
+
+    if keys.pressed(KeyCode::T) {
+        world_recorder.undo();
+        return;
+    }
 
     blocks.for_each_mut(|(entity_id, block, transform, mut sprite)| {
         let attributes = unwrap_attributes!(block_attributes, *block, return);
@@ -436,6 +508,13 @@ pub fn apply_attributes(mut blocks: Query<(Entity, &Block, &Transform, &mut Spri
                     if keys.pressed(KeyCode::S) {
                         current_direction = BlockDirection::Down;
                     }
+
+                    if current_direction == BlockDirection::None {
+                        return;
+                    }
+
+                    world_recorder.user_input = true;
+                    queue.user_input = true;
 
                     queue.push(entity_id, QueueType::Move(current_direction, transform.translation));
                 },
