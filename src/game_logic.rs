@@ -28,6 +28,19 @@ pub fn setup_images(asset_server: Res<AssetServer>, mut textures: ResMut<Texture
     asset_to_block!(Block::Wall, "textures/wall.png");
     asset_to_block!(Block::Rock, "textures/rock.png");
     asset_to_block!(Block::Flag, "textures/flag.png");
+    asset_to_block!(Block::Water, "textures/water.png");
+    asset_to_block!(Block::Path, "textures/path.png");
+    asset_to_block!(Block::Tree, "textures/tree.png");
+    asset_to_block!(Block::Level01, "textures/level 01.png");
+    asset_to_block!(Block::Level02, "textures/level 02.png");
+    asset_to_block!(Block::Level03, "textures/level 03.png");
+    asset_to_block!(Block::Level04, "textures/level 04.png");
+    asset_to_block!(Block::Level05, "textures/level 05.png");
+    asset_to_block!(Block::Level06, "textures/level 06.png");
+    asset_to_block!(Block::Level07, "textures/level 07.png");
+    asset_to_block!(Block::Level08, "textures/level 08.png");
+    asset_to_block!(Block::Level09, "textures/level 09.png");
+    asset_to_block!(Block::Air, "textures/air.png");
 
     asset_to_block!(text, TextBlock::Bevy, "textures/text bevy.png");
     asset_to_block!(text, TextBlock::Rock, "textures/text rock.png");
@@ -38,6 +51,9 @@ pub fn setup_images(asset_server: Res<AssetServer>, mut textures: ResMut<Texture
     asset_to_block!(text, TextBlock::Is, "textures/text is.png");
     asset_to_block!(text, TextBlock::Flag, "textures/text flag.png");
     asset_to_block!(text, TextBlock::Win, "textures/text win.png");
+    asset_to_block!(text, TextBlock::Tree, "textures/text tree.png");
+    asset_to_block!(text, TextBlock::Water, "textures/text water.png");
+    asset_to_block!(text, TextBlock::Sink, "textures/text sink.png");
 }
 
 pub fn setup_world(mut commands: Commands, textures: Res<Textures>, level_index: Res<LevelIndex>, levels: Res<Levels>, mut constraints: ResMut<Constraints>) {
@@ -150,7 +166,7 @@ pub fn record_world(blocks: Query<(Entity, &Transform, &Sprite, &Block)>, mut wo
     world_recorder.record = false;
 }
 
-pub fn evaluate_text(mover: Query<&Mover, Changed<Mover>>, text: Query<(&TextBlock, &Transform)>, mut block_attributes: ResMut<BlockAttributes>, mut queue: ResMut<Queue>) {
+pub fn evaluate_text(mover: Query<&Mover, Changed<Mover>>, text: Query<(&TextBlock, &Block, &Transform)>, mut block_attributes: ResMut<BlockAttributes>, mut queue: ResMut<Queue>) {
     if mover.is_empty() { return; }
     
     block_attributes.0.clear();
@@ -158,7 +174,9 @@ pub fn evaluate_text(mover: Query<&Mover, Changed<Mover>>, text: Query<(&TextBlo
 
     let mut vector_of_text = Vec::new();
 
-    for (text_type, transform) in text.iter() {
+    for (text_type, block, transform) in text.iter() {
+        if *block != Block::Text { continue; }
+
         vector_of_text.push((*text_type, transform.translation));
     }
 
@@ -176,7 +194,7 @@ pub fn evaluate_text(mover: Query<&Mover, Changed<Mover>>, text: Query<(&TextBlo
 
     for (text_block, pos) in &vector_of_text {
         match text_block {
-            TextBlock::Bevy | TextBlock::Wall | TextBlock::Rock | TextBlock::Flag => {
+            TextBlock::Bevy | TextBlock::Wall | TextBlock::Rock | TextBlock::Flag | TextBlock::Water | TextBlock::Tree => {
                 let right_pos = *pos + Vec3::new(16.0, 0.0, 0.0);
                 let down_pos = *pos + Vec3::new(0.0, -16.0, 0.0);
 
@@ -250,6 +268,8 @@ pub fn evaluate_text(mover: Query<&Mover, Changed<Mover>>, text: Query<(&TextBlo
             TextBlock::Rock => Block::Rock,
             TextBlock::Wall => Block::Wall,
             TextBlock::Flag => Block::Flag,
+            TextBlock::Water => Block::Water,
+            TextBlock::Tree => Block::Tree,
 
             _ => continue,
         };
@@ -271,11 +291,14 @@ pub fn evaluate_text(mover: Query<&Mover, Changed<Mover>>, text: Query<(&TextBlo
                 TextBlock::Stop => Attribute::Stop,
                 TextBlock::You => Attribute::You,
                 TextBlock::Win => Attribute::Win,
+                TextBlock::Sink => Attribute::Sink,
 
                 TextBlock::Bevy => change_block!(Block::Bevy),
                 TextBlock::Rock => change_block!(Block::Rock),
                 TextBlock::Wall => change_block!(Block::Wall),
                 TextBlock::Flag => change_block!(Block::Flag),
+                TextBlock::Tree => change_block!(Block::Tree),
+                TextBlock::Water => change_block!(Block::Water),
 
                 TextBlock::Is => continue,
             })
@@ -297,18 +320,37 @@ macro_rules! unwrap_attributes {
     };
 }
 
-pub fn apply_queue(mut commands: Commands, mut blocks: Query<(Entity, &mut Block, &mut Mover)>, queue: Res<Queue>, tile_map: Res<TileMap>, block_attributes: Res<BlockAttributes>, constraints: Res<Constraints>) {
-    if !queue.user_input {
-        return;
-    }
-   
+pub fn apply_queue(mut commands: Commands, mut blocks: Query<(Entity, &mut Block, &mut Mover)>, queue: Res<Queue>, tile_map: Res<TileMap>, block_attributes: Res<BlockAttributes>, constraints: Res<Constraints>) {   
     let mut moveables = Vec::<(Entity, Vec3)>::new();
     let mut transform_types = HashMap::<Block, Block>::new();
+    let mut turn_into_air = Vec::<Entity>::new();
     
     for entry in queue.clone() {
         match entry.queue_type {
             QueueType::Delete => {
                 commands.entity(entry.id).despawn_recursive();
+            }
+
+            QueueType::Sink(pos) => {
+                let tile = tile_map.get(pos);
+                let mut turn_to_air = Vec::<Entity>::new();
+                let mut found_another_id = false;
+
+                if let Some(tuples) = tile {
+                    for tuple in tuples {
+                        let (id, _, _) = tuple;
+
+                        found_another_id = found_another_id || !id.eq(&entry.id);
+
+                        turn_to_air.push(id);
+                    }
+                }  
+                
+                if !found_another_id {
+                    turn_to_air.clear();
+                }
+
+                turn_into_air.append(&mut turn_to_air);
             }
 
             QueueType::WinOn(pos) => {
@@ -419,6 +461,20 @@ pub fn apply_queue(mut commands: Commands, mut blocks: Query<(Entity, &mut Block
         if found_matching_id.is_some() {
             moveables.swap_remove(found_matching_id.unwrap());
         }
+
+        found_matching_id = None;
+
+        for (index, id) in turn_into_air.iter().enumerate() {
+            if entity_id.eq(id) {
+                *block_id = Block::Air;
+
+                found_matching_id = Some(index);
+            }
+        }
+
+        if found_matching_id.is_some() {
+            turn_into_air.swap_remove(found_matching_id.unwrap());
+        }
     }
 }
 
@@ -514,7 +570,6 @@ pub fn apply_attributes(
                     }
 
                     world_recorder.user_input = true;
-                    queue.user_input = true;
 
                     queue.push(entity_id, QueueType::Move(current_direction, transform.translation));
                 },
@@ -523,16 +578,20 @@ pub fn apply_attributes(
                     queue.push(entity_id, QueueType::WinOn(transform.translation));
                 }
 
+                Attribute::Sink => {
+                    queue.push(entity_id, QueueType::Sink(transform.translation));
+                }
+
                 _ => {}
             }
         }
     })
 }
 
-pub fn change_block_texture(mut blocks: Query<(&mut Handle<Image>, &Block), Changed<Block>>, textures: Res<Textures>) {
-    blocks.for_each_mut(|(mut image, block)| {
+pub fn change_block_texture(mut blocks: Query<(&mut Handle<Image>, &Block, Option<&TextBlock>), Changed<Block>>, textures: Res<Textures>) {
+    blocks.for_each_mut(|(mut image, block, text_type)| {
         match block {
-            Block::Text => {},
+            Block::Text => *image = (*(textures.0.get(&(Block::Text, Some(*text_type.unwrap()))).unwrap())).clone(),
             _ => *image = block_to_texture(&textures, *block, None)
         }
     });

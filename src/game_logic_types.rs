@@ -52,6 +52,19 @@ pub enum Block {
     Rock,
     Text,
     Flag,
+    Tree,
+    Path,
+    Water,
+    Level01,
+    Level02,
+    Level03,
+    Level04,
+    Level05,
+    Level06,
+    Level07,
+    Level08,
+    Level09,
+    Air,
 }
 
 #[derive(Component, PartialEq, Eq, Hash, Clone, Copy, Debug)]
@@ -65,6 +78,9 @@ pub enum TextBlock {
     Stop,
     Flag,
     Win,
+    Tree,
+    Sink,
+    Water,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -88,6 +104,7 @@ pub enum Attribute {
     Stop,
     Push,
     Win,
+    Sink,
 }
 
 #[derive(Bundle)]
@@ -187,6 +204,7 @@ pub enum QueueType {
     Move(BlockDirection, Vec3),
     ChangeBlock(Block, Block),
     WinOn(Vec3),
+    Sink(Vec3),
     Delete,
 }
 
@@ -198,8 +216,6 @@ pub struct QueueEntry {
 
 #[derive(Default, Clone, Debug)]
 pub struct Queue {
-    pub user_input: bool,
-
     entries: Vec<QueueEntry>,
     iter_idx: usize,
 }
@@ -227,8 +243,6 @@ impl Queue {
 
     pub fn reset(&mut self) {
         self.entries.clear();
-
-        self.user_input = false;
     }
 }
 
@@ -305,6 +319,18 @@ pub fn create_level_data(value: serde_json::Value) -> LevelData {
         1 => init!(Block::Wall),
         2 => init!(Block::Rock),
         3 => init!(Block::Flag),
+        4 => init!(Block::Tree),
+        5 => init!(Block::Level01),
+        6 => init!(Block::Level02),
+        7 => init!(Block::Level03),
+        8 => init!(Block::Level04),
+        9 => init!(Block::Level05),
+        10 => init!(Block::Level06),
+        11 => init!(Block::Level07),
+        12 => init!(Block::Level08),
+        13 => init!(Block::Level09),
+        14 => init!(Block::Path),
+        15 => init!(Block::Water),
         _ => {}
     });
 
@@ -318,6 +344,9 @@ pub fn create_level_data(value: serde_json::Value) -> LevelData {
         6 => init!(text, TextBlock::Rock),
         7 => init!(text, TextBlock::Flag),
         8 => init!(text, TextBlock::Win),
+        9 => init!(text, TextBlock::Sink),
+        10 => init!(text, TextBlock::Tree),
+        11 => init!(text, TextBlock::Water),
         _ => {}
     });
 
