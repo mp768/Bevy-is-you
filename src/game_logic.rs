@@ -1,8 +1,8 @@
 use bevy::{prelude::*, utils::{HashMap}, render::camera::{ScalingMode}, sprite::Anchor};
-use crate::{game_logic_types::*, AppState, LevelIndex};
+use crate::{game_logic_types::*, AppState, LevelIndex, loading_levels::*};
 
-pub fn destroy_blocks(mut commands: Commands, blocks: Query<Entity, With<Block>>, cameras: Query<Entity, With<Camera>>) {
-    for entity_id in blocks.iter() {
+pub fn destroy_sprites(mut commands: Commands, sprites: Query<Entity, With<Sprite>>, cameras: Query<Entity, With<Camera>>) {
+    for entity_id in sprites.iter() {
         commands.entity(entity_id).despawn_recursive();
     }
 
@@ -56,7 +56,14 @@ pub fn setup_images(asset_server: Res<AssetServer>, mut textures: ResMut<Texture
     asset_to_block!(text, TextBlock::Sink, "textures/text sink.png");
 }
 
-pub fn setup_world(mut commands: Commands, textures: Res<Textures>, level_index: Res<LevelIndex>, levels: Res<Levels>, mut constraints: ResMut<Constraints>) {
+pub fn setup_world(
+    mut commands: Commands, 
+    textures: Res<Textures>, 
+    level_index: Res<LevelIndex>, 
+    levels: Res<Levels>, 
+    mut constraints: ResMut<Constraints>,
+    mut world_recorder: ResMut<WorldRecorder>,
+) {
     let levels = &levels.0;
 
     const CAMERA_WIDTH: f32 = 640.0;
@@ -105,6 +112,7 @@ pub fn setup_world(mut commands: Commands, textures: Res<Textures>, level_index:
     };
 
     commands.spawn_bundle(black_background);
+    world_recorder.clear();
 }
 
 pub fn apply_constraints(mut movers: Query<(&mut Mover, &mut Transform), Changed<Mover>>, constraints: Res<Constraints>) {
@@ -121,9 +129,29 @@ pub fn apply_constraints(mut movers: Query<(&mut Mover, &mut Transform), Changed
     }
 }
 
+pub fn check_if_level_changed(
+    mut commands: Commands, 
+    level_selects: Query<(Entity, &PlayerLevelSelect), With<PlayerLevelSelect>>, 
+    mut level_idx: ResMut<LevelIndex>, 
+    mut app_state: ResMut<State<AppState>>
+) {
+    let mut ids = Vec::new();
+
+    for (entity_id, level_select) in level_selects.iter() {
+        let _ = app_state.set(AppState::Game);
+        level_idx.0 = level_select.0;
+
+        ids.push(entity_id);
+    }
+
+    for id in ids {
+        commands.entity(id).despawn();
+    }
+}
+
 pub fn check_if_win(mut commands: Commands, winners: Query<Entity, With<PlayerHasWon>>, mut app_state: ResMut<State<AppState>>) {
     for winner_id in winners.iter() {
-        let _ = app_state.set(AppState::MainMenu);
+        let _ = app_state.set(AppState::MainArea);
 
         commands.entity(winner_id).despawn();
     }
@@ -171,6 +199,15 @@ pub fn evaluate_text(mover: Query<&Mover, Changed<Mover>>, text: Query<(&TextBlo
     
     block_attributes.0.clear();
     block_attributes.0.insert(Block::Text, vec![Attribute::Push]);
+    block_attributes.0.insert(Block::Level01, vec![Attribute::LevelSelect(1)]);
+    block_attributes.0.insert(Block::Level02, vec![Attribute::LevelSelect(2)]);
+    block_attributes.0.insert(Block::Level03, vec![Attribute::LevelSelect(3)]);
+    block_attributes.0.insert(Block::Level04, vec![Attribute::LevelSelect(4)]);
+    block_attributes.0.insert(Block::Level05, vec![Attribute::LevelSelect(5)]);
+    block_attributes.0.insert(Block::Level06, vec![Attribute::LevelSelect(6)]);
+    block_attributes.0.insert(Block::Level07, vec![Attribute::LevelSelect(7)]);
+    block_attributes.0.insert(Block::Level08, vec![Attribute::LevelSelect(8)]);
+    block_attributes.0.insert(Block::Level09, vec![Attribute::LevelSelect(9)]);
 
     let mut vector_of_text = Vec::new();
 
@@ -334,19 +371,26 @@ pub fn apply_queue(mut commands: Commands, mut blocks: Query<(Entity, &mut Block
             QueueType::Sink(pos) => {
                 let tile = tile_map.get(pos);
                 let mut turn_to_air = Vec::<Entity>::new();
-                let mut found_another_id = false;
+                let mut found_attribute = false;
 
                 if let Some(tuples) = tile {
-                    for tuple in tuples {
-                        let (id, _, _) = tuple;
-
-                        found_another_id = found_another_id || !id.eq(&entry.id);
-
+                    for (id, _, block) in tuples {
                         turn_to_air.push(id);
+
+                        let attributes = unwrap_attributes!(block_attributes, block, continue);
+
+                        for attribute in attributes {
+                            match attribute {
+                                Attribute::You | Attribute::Push | Attribute::Stop => found_attribute = true,
+                                _ => {}
+                            }
+                        }
+
+
                     }
                 }  
                 
-                if !found_another_id {
+                if !found_attribute {
                     turn_to_air.clear();
                 }
 
@@ -356,9 +400,7 @@ pub fn apply_queue(mut commands: Commands, mut blocks: Query<(Entity, &mut Block
             QueueType::WinOn(pos) => {
                 let tile = tile_map.get(pos);
                 if let Some(tuples) = tile {
-                    for tuple in tuples {
-                        let (_, _, block) = tuple;
-
+                    for (_, _, block) in tuples {
                         let attributes = unwrap_attributes!(block_attributes, block, continue);
 
                         for attribute in attributes {
@@ -368,6 +410,28 @@ pub fn apply_queue(mut commands: Commands, mut blocks: Query<(Entity, &mut Block
                                 }
 
                                 _ => {},
+                            }
+                        }
+                    }
+                }
+            }
+
+            QueueType::LevelSelect(pos, level_id) => {
+                let tile = tile_map.get(pos);
+
+                if let Some(tuples) = tile {
+                    if tuples.len() == 1 { continue; }
+
+                    for (_, _, block) in tuples {
+                        let attributes = unwrap_attributes!(block_attributes, block, continue);
+                        
+                        for attribute in attributes {
+                            match attribute {
+                                Attribute::You => {
+                                    commands.spawn().insert(PlayerLevelSelect(level_id));
+                                }
+
+                                _ => {}
                             }
                         }
                     }
@@ -411,9 +475,7 @@ pub fn apply_queue(mut commands: Commands, mut blocks: Query<(Entity, &mut Block
                     let tile = tile_map.get(position);
 
                     if let Some(tuples) = tile {
-                        for tuple in tuples {
-                            let (id, _, block) = tuple;
-
+                        for (id, _, block) in tuples {
                             let attributes = unwrap_attributes!(block_attributes, block, continue);
                             
                             for attribute in attributes {
@@ -500,7 +562,7 @@ pub fn apply_mover(mut blocks: Query<(&mut Mover, &mut Transform)>, timer: Res<T
     blocks.for_each_mut(|(mut mover, mut transform)| {
         if mover.complete { return; }
         
-        transform.translation = transform.translation.lerp(mover.target, 19.5 * timer.delta_seconds());
+        transform.translation = transform.translation.lerp(mover.target, 18.0 * timer.delta_seconds());
 
         if transform.translation.round() == mover.target {
             mover.complete = true;
@@ -515,8 +577,8 @@ pub fn apply_attributes(
     mut queue: ResMut<Queue>, 
     mut world_recorder: ResMut<WorldRecorder>,
     block_attributes: Res<BlockAttributes>, 
-    keys: Res<Input<KeyCode>>) 
-{
+    keys: Res<Input<KeyCode>>
+) {
     {
         let mut logic_continue = true;
         for mover in movers.iter() {
@@ -580,6 +642,10 @@ pub fn apply_attributes(
 
                 Attribute::Sink => {
                     queue.push(entity_id, QueueType::Sink(transform.translation));
+                }
+
+                Attribute::LevelSelect(level_id) => {
+                    queue.push(entity_id, QueueType::LevelSelect(transform.translation, *level_id));
                 }
 
                 _ => {}
