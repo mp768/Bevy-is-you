@@ -1,3 +1,11 @@
+#![cfg_attr(
+    all(
+        target_os = "windows",
+        not(debug_assertions),
+    ),
+    windows_subsystem = "windows",
+)]
+
 pub mod game_logic;
 pub mod game_logic_types;
 pub mod game_logic_plugin;
