@@ -209,6 +209,13 @@ impl Queue {
         });
     }
 
+    pub fn push_type(&mut self, queue_type: QueueType) {
+        self.entries.push(QueueEntry { 
+            id: Entity::from_raw(0), 
+            queue_type, 
+        });
+    }
+
     pub fn get(&self, index: usize) -> Option<QueueEntry> {
         match self.entries.get(index) {
             Some(val) => Some(*val),

@@ -107,7 +107,7 @@ pub fn setup_world(
             anchor: Anchor::BottomLeft,
             ..default()
         },
-        transform: Transform::from_translation(offset.extend(-0.01) - Vec3::new(8.0, 8.0, 0.0)),
+        transform: Transform::from_translation(offset.extend(-0.01) - Vec3::new(8.0, 8.0, 0.01)),
         ..default()
     };
 
@@ -120,7 +120,7 @@ pub fn apply_constraints(mut movers: Query<(&mut Mover, &mut Transform), Changed
         if mover.complete { continue; }
 
         let target_pos = mover.target;
-        let clamped_pos = target_pos.clamp(constraints.start.extend(0.0), constraints.end.extend(0.0));
+        let clamped_pos = target_pos.truncate().clamp(constraints.start, constraints.end).extend(target_pos.z);
 
         if target_pos != clamped_pos {
             transform.translation = clamped_pos;
@@ -314,12 +314,10 @@ pub fn evaluate_text(mover: Query<&Mover, Changed<Mover>>, text: Query<(&TextBlo
         let mut attributes = Vec::<Attribute>::new();
 
         macro_rules! change_block {
-            ($block: expr) => {
-                {
-                    queue.push(Entity::from_raw(0), QueueType::ChangeBlock(block_type, $block));
-                    continue 
-                }
-            };
+            ($block: expr) => {{
+                queue.push_type(QueueType::ChangeBlock(block_type, $block));
+                continue 
+            }};
         }
 
         for text_attribute in text_attributes {
@@ -439,6 +437,12 @@ pub fn apply_queue(mut commands: Commands, mut blocks: Query<(Entity, &mut Block
             }
 
             QueueType::ChangeBlock(from, to) => {
+                let possible_existing_result = transform_types.get(&from);
+
+                if let Some(existing_result) = possible_existing_result {
+                    if *existing_result == from { continue; }
+                }
+
                 transform_types.insert(from, to);
             }
 
@@ -562,11 +566,11 @@ pub fn apply_mover(mut blocks: Query<(&mut Mover, &mut Transform)>, timer: Res<T
     blocks.for_each_mut(|(mut mover, mut transform)| {
         if mover.complete { return; }
         
-        transform.translation = transform.translation.lerp(mover.target, 18.0 * timer.delta_seconds());
+        transform.translation = transform.translation.truncate().lerp(mover.target.truncate(), 18.0 * timer.delta_seconds()).extend(transform.translation.z);
 
-        if transform.translation.round() == mover.target {
+        if transform.translation.round().truncate() == mover.target.truncate(){
             mover.complete = true;
-            transform.translation = transform.translation.round();
+            transform.translation = transform.translation.truncate().round().extend(transform.translation.z);
         }
     })
 }
@@ -679,7 +683,7 @@ fn spawn_text_block(commands: &mut Commands, textures: &Res<Textures>, text_type
         })
         .insert_bundle(SpriteBundle {
             texture: (*(textures.0.get(&(Block::Text, Some(text_type))).unwrap())).clone(),
-            transform: Transform::from_translation(Vec3::new(tile_pos.x, tile_pos.y, 0.0)),
+            transform: Transform::from_translation(Vec3::new(tile_pos.x, tile_pos.y, 0.02)),
             ..default()
         });
 }
@@ -695,7 +699,7 @@ fn spawn_block(commands: &mut Commands, textures: &Res<Textures>, type_id: Block
         })
         .insert_bundle(SpriteBundle {
             texture: block_to_texture(textures, type_id, None),
-            transform: Transform::from_translation(Vec3::new(tile_pos.x, tile_pos.y, 0.0)),
+            transform: Transform::from_translation(Vec3::new(tile_pos.x, tile_pos.y, -0.01)),
             ..default()
         });
 }

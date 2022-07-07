@@ -10,7 +10,7 @@ pub struct MainAreaPlugin;
 impl Plugin for MainAreaPlugin {
     fn build(&self, app: &mut App) {
         app
-            .insert_resource(load_levels!("main map", "_test_level", "actual_puzzle"))
+            .insert_resource(load_levels!("main map", "level1", "level2", "level3", "level4"))
             .init_resource::<Textures>()
             .init_resource::<BlockAttributes>()
             .init_resource::<TileMap>()
