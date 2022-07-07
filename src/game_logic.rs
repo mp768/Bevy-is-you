@@ -577,7 +577,7 @@ pub fn apply_mover(mut blocks: Query<(&mut Mover, &mut Transform)>, timer: Res<T
 
 pub fn apply_attributes(
     movers: Query<&Mover>, 
-    mut blocks: Query<(Entity, &Block, &Transform, &mut Sprite)>, 
+    mut blocks: Query<(Entity, &Block, &mut Transform, &mut Sprite)>, 
     mut queue: ResMut<Queue>, 
     mut world_recorder: ResMut<WorldRecorder>,
     block_attributes: Res<BlockAttributes>, 
@@ -605,12 +605,14 @@ pub fn apply_attributes(
         return;
     }
 
-    blocks.for_each_mut(|(entity_id, block, transform, mut sprite)| {
+    blocks.for_each_mut(|(entity_id, block, mut transform, mut sprite)| {
         let attributes = unwrap_attributes!(block_attributes, *block, return);
+        transform.translation.z = 0.02;
 
         for attribute in attributes {
             match attribute {
                 Attribute::You => {
+                    transform.translation.z = 0.08;
                     let mut current_direction = BlockDirection::None;
 
                     if keys.pressed(KeyCode::A) {
@@ -641,18 +643,27 @@ pub fn apply_attributes(
                 },
 
                 Attribute::Win => {
+                    transform.translation.z = 0.08;
                     queue.push(entity_id, QueueType::WinOn(transform.translation));
                 }
 
                 Attribute::Sink => {
+                    transform.translation.z = 0.08;
                     queue.push(entity_id, QueueType::Sink(transform.translation));
                 }
 
                 Attribute::LevelSelect(level_id) => {
+                    transform.translation.z = 0.08;
                     queue.push(entity_id, QueueType::LevelSelect(transform.translation, *level_id));
                 }
 
-                _ => {}
+                Attribute::Push => {
+                    transform.translation.z = 0.05;
+                }
+
+                Attribute::Stop => {
+                    transform.translation.z = 0.04;
+                }
             }
         }
     })
@@ -699,7 +710,7 @@ fn spawn_block(commands: &mut Commands, textures: &Res<Textures>, type_id: Block
         })
         .insert_bundle(SpriteBundle {
             texture: block_to_texture(textures, type_id, None),
-            transform: Transform::from_translation(Vec3::new(tile_pos.x, tile_pos.y, -0.01)),
+            transform: Transform::from_translation(Vec3::new(tile_pos.x, tile_pos.y, 0.03)),
             ..default()
         });
 }
