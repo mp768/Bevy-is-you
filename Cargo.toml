@@ -11,4 +11,4 @@ edition = "2021"
 [dependencies]
 bevy = "0.7"
 serde_json = "*"
-# bevy = { version = "*" } # turn this one on when you want ot build the game for release or not to link it with the dynamic bevy lib.
+# bevy = { version = "*" } # turn this one on when you want to build the game for release or not to link it with the dynamic bevy lib.

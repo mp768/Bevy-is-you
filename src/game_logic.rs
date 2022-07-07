@@ -595,12 +595,12 @@ pub fn apply_attributes(
     queue.reset();
     world_recorder.reset();
 
-    if keys.pressed(KeyCode::R) {
+    if keys.pressed(KeyCode::R) || keys.pressed(KeyCode::Z) {
         world_recorder.redo();
         return;
     }
 
-    if keys.pressed(KeyCode::T) {
+    if keys.pressed(KeyCode::T) || keys.pressed(KeyCode::C) {
         world_recorder.undo();
         return;
     }
@@ -615,26 +615,26 @@ pub fn apply_attributes(
                     transform.translation.z = 0.08;
                     let mut current_direction = BlockDirection::None;
 
-                    if keys.pressed(KeyCode::A) {
+                    if keys.pressed(KeyCode::A) || keys.pressed(KeyCode::Left) {
                         current_direction = BlockDirection::Left;
                         sprite.flip_x = true;
                     }
 
-                    if keys.pressed(KeyCode::D) {
+                    if keys.pressed(KeyCode::D) || keys.pressed(KeyCode::Right) {
                         current_direction = BlockDirection::Right;
                         sprite.flip_x = false;
                     }
 
-                    if keys.pressed(KeyCode::W) {
+                    if keys.pressed(KeyCode::W) || keys.pressed(KeyCode::Up) {
                         current_direction = BlockDirection::Up;
                     }
 
-                    if keys.pressed(KeyCode::S) {
+                    if keys.pressed(KeyCode::S) || keys.pressed(KeyCode::Down) {
                         current_direction = BlockDirection::Down;
                     }
 
                     if current_direction == BlockDirection::None {
-                        return;
+                        continue;
                     }
 
                     world_recorder.user_input = true;
