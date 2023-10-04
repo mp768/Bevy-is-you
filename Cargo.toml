@@ -12,3 +12,4 @@ edition = "2021"
 bevy = "0.7"
 serde_json = "*"
 # bevy = { version = "*" } # turn this one on when you want to build the game for release or not to link it with the dynamic bevy lib.
+# bevy = { version = "0.7", features = ["wayland"] } enable for linux builds
